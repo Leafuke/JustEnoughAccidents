@@ -1,0 +1,19 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+rootProject.name = 'just-enough-accidents-fabric-26.1'
+
+includeBuild('../../../Fabric/Fabric-26.1') {
+	name = 'minebackup-fabric-26.1'
+	dependencySubstitution {
+		substitute module('com.leafuke.minebackup:minebackup') using project(':')
+	}
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "just_enough_accidents",
+  "version": "${version}",
+  "name": "Just Enough Accidents",
+  "description": "Creates MineBackup accident-site snapshots when a singleplayer or LAN world enters a dangerous state.",
+  "authors": [
+    "Leafuke"
+  ],
+  "contact": {
+    "homepage": "https://folderrewind.top/",
+    "sources": "https://github.com/Leafuke/MineBackup-Mod"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.leafuke.jea.JustEnoughAccidents"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~26.1",
+    "java": ">=25",
+    "fabric-api": "*",
+    "minebackup": ">=3.1.0"
+  }
+}
