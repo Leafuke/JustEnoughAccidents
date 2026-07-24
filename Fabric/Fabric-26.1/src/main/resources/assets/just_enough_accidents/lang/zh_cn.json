@@ -1,0 +1,19 @@
+{
+  "just_enough_accidents.incident.fatal_fall": "预测致命摔落",
+  "just_enough_accidents.incident.low_air": "氧气即将耗尽",
+  "just_enough_accidents.incident.lava": "进入岩浆",
+  "just_enough_accidents.incident.elytra": "飞行中的鞘翅即将损坏",
+  "just_enough_accidents.incident.low_health": "生命值过低",
+  "just_enough_accidents.incident.totem": "不死图腾触发",
+  "just_enough_accidents.incident.creeper": "附近苦力怕即将爆炸",
+  "just_enough_accidents.incident.scoreboard": "计分板请求",
+  "just_enough_accidents.message.accepted": "[JEA] 检测到%s，正在创建事故现场快照……",
+  "just_enough_accidents.message.created": "[JEA] 已为%s创建事故现场快照，用时 %s 毫秒。",
+  "just_enough_accidents.message.no_changes": "[JEA] MineBackup 判定%s没有新变化，未创建新归档（用时 %s 毫秒）。",
+  "just_enough_accidents.message.cancelled": "[JEA] %s的快照已取消：%s",
+  "just_enough_accidents.message.rejected": "[JEA] %s的快照请求被拒绝：%s",
+  "just_enough_accidents.message.failed": "[JEA] %s的快照创建失败：%s",
+  "just_enough_accidents.message.suppressed_in_flight": "[JEA] 检测到%s，但已有世界操作正在执行；本次险兆不会排队。",
+  "just_enough_accidents.message.suppressed_cooldown": "[JEA] 在全局冷却期间检测到%s（剩余 %s 秒）；本次险兆不会排队。",
+  "just_enough_accidents.action.restore": "[还原此 JEA 快照]"
+}

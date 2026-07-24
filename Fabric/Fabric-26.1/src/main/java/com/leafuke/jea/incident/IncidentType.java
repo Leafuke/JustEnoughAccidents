@@ -19,4 +19,8 @@ public enum IncidentType {
     public String id() {
         return id;
     }
+
+    public String translationKey() {
+        return "just_enough_accidents.incident." + id;
+    }
 }

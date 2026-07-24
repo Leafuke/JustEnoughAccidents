@@ -1,0 +1,19 @@
+{
+  "just_enough_accidents.incident.fatal_fall": "predicted fatal fall",
+  "just_enough_accidents.incident.low_air": "low air",
+  "just_enough_accidents.incident.lava": "lava exposure",
+  "just_enough_accidents.incident.elytra": "near-broken elytra",
+  "just_enough_accidents.incident.low_health": "low health",
+  "just_enough_accidents.incident.totem": "totem activation",
+  "just_enough_accidents.incident.creeper": "nearby swelling creeper",
+  "just_enough_accidents.incident.scoreboard": "scoreboard request",
+  "just_enough_accidents.message.accepted": "[JEA] Detected %s. Creating an accident-site snapshot…",
+  "just_enough_accidents.message.created": "[JEA] Snapshot for %s was created in %s ms.",
+  "just_enough_accidents.message.no_changes": "[JEA] MineBackup found no changes for %s after %s ms; no new archive was created.",
+  "just_enough_accidents.message.cancelled": "[JEA] Snapshot for %s was cancelled: %s",
+  "just_enough_accidents.message.rejected": "[JEA] Snapshot for %s was rejected: %s",
+  "just_enough_accidents.message.failed": "[JEA] Snapshot for %s failed: %s",
+  "just_enough_accidents.message.suppressed_in_flight": "[JEA] Detected %s, but another world operation is already running. This incident was not queued.",
+  "just_enough_accidents.message.suppressed_cooldown": "[JEA] Detected %s during the global cooldown (%s seconds remaining). This incident was not queued.",
+  "just_enough_accidents.action.restore": "[Restore this JEA snapshot]"
+}

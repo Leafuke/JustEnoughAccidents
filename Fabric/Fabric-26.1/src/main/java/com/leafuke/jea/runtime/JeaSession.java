@@ -4,9 +4,11 @@ import com.leafuke.jea.JustEnoughAccidents;
 import com.leafuke.jea.config.JeaConfig;
 import com.leafuke.jea.incident.CreateNowBackupStrategy;
 import com.leafuke.jea.incident.IncidentCoordinator;
+import com.leafuke.jea.incident.IncidentNotifier;
 import com.leafuke.jea.incident.IncidentSignal;
 import com.leafuke.jea.incident.IncidentType;
 import com.leafuke.jea.incident.PlayerDangerScanner;
+import com.leafuke.jea.incident.ScoreboardTrigger;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -14,15 +16,18 @@ public final class JeaSession implements AutoCloseable {
     private final MinecraftServer server;
     private final JeaConfig config;
     private final PlayerDangerScanner scanner;
+    private final ScoreboardTrigger scoreboardTrigger;
     private final IncidentCoordinator coordinator;
 
     public JeaSession(MinecraftServer server, JeaConfig config) {
         this.server = server;
         this.config = config;
         this.scanner = new PlayerDangerScanner(config.detectors);
+        this.scoreboardTrigger = new ScoreboardTrigger();
         this.coordinator = new IncidentCoordinator(
                 server,
                 new CreateNowBackupStrategy(config.backup),
+                new IncidentNotifier(server),
                 config.cooldownSeconds);
     }
 
@@ -36,6 +41,9 @@ public final class JeaSession implements AutoCloseable {
     }
 
     public void tick() {
+        if (config.scoreboard.enabled && scoreboardTrigger.consume(server)) {
+            coordinator.signal(IncidentSignal.global(IncidentType.SCOREBOARD));
+        }
         scanner.scan(server, coordinator::signal);
         coordinator.flush();
     }

@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 public final class IncidentCoordinator implements AutoCloseable {
     private final MinecraftServer server;
     private final IncidentBackupStrategy strategy;
+    private final IncidentFeedback feedback;
     private final long cooldownNanos;
     private final EnumMap<IncidentType, LinkedHashMap<Object, IncidentSignal>> pending =
             new EnumMap<>(IncidentType.class);
@@ -27,9 +28,11 @@ public final class IncidentCoordinator implements AutoCloseable {
     public IncidentCoordinator(
             MinecraftServer server,
             IncidentBackupStrategy strategy,
+            IncidentFeedback feedback,
             int cooldownSeconds) {
         this.server = server;
         this.strategy = strategy;
+        this.feedback = feedback;
         this.cooldownNanos = TimeUnit.SECONDS.toNanos(cooldownSeconds);
     }
 
@@ -61,6 +64,7 @@ public final class IncidentCoordinator implements AutoCloseable {
             JustEnoughAccidents.LOGGER.warn(
                     "Suppressed JEA incident snapshot while another request is in flight: {}",
                     batch.comment());
+            feedback.suppressedInFlight(batch);
             return;
         }
 
@@ -71,6 +75,7 @@ public final class IncidentCoordinator implements AutoCloseable {
                     "Suppressed JEA incident snapshot during cooldown ({} ms remaining): {}",
                     remainingMillis,
                     batch.comment());
+            feedback.suppressedCooldown(batch, remainingMillis);
             return;
         }
 
@@ -83,6 +88,7 @@ public final class IncidentCoordinator implements AutoCloseable {
                     "Could not submit JEA incident snapshot: {}",
                     batch.comment(),
                     ex);
+            feedback.submissionFailed(batch, ex);
             return;
         }
 
@@ -94,6 +100,7 @@ public final class IncidentCoordinator implements AutoCloseable {
                     "MineBackup accepted JEA incident snapshot {}: {}",
                     handle.id(),
                     batch.comment());
+            feedback.accepted(batch);
         } else {
             JustEnoughAccidents.LOGGER.warn(
                     "MineBackup immediately rejected JEA incident snapshot {}: {}",
@@ -127,6 +134,7 @@ public final class IncidentCoordinator implements AutoCloseable {
             activeOperationId = null;
         }
         long elapsedMillis = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+        feedback.completed(batch, result, throwable, elapsedMillis);
         if (throwable != null) {
             JustEnoughAccidents.LOGGER.error(
                     "JEA incident snapshot completed exceptionally after {} ms: {}",
