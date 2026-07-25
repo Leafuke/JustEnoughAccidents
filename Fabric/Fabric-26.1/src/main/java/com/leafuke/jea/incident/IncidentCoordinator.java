@@ -1,8 +1,9 @@
 package com.leafuke.jea.incident;
 
 import com.leafuke.jea.JustEnoughAccidents;
-import com.leafuke.minebackup.api.v1.BackupResult;
-import com.leafuke.minebackup.api.v1.OperationPhase;
+import com.leafuke.minebackup.api.v2.BackupResult;
+import com.leafuke.minebackup.api.v2.OperationPhase;
+import com.leafuke.minebackup.api.v2.OperationHandle;
 import net.minecraft.server.MinecraftServer;
 
 import java.time.Duration;
@@ -80,7 +81,7 @@ public final class IncidentCoordinator implements AutoCloseable {
         }
 
         long startedAt = System.nanoTime();
-        final com.leafuke.minebackup.api.v1.OperationHandle<BackupResult> handle;
+        final OperationHandle<BackupResult> handle;
         try {
             handle = strategy.submit(batch);
         } catch (RuntimeException ex) {
@@ -153,7 +154,7 @@ public final class IncidentCoordinator implements AutoCloseable {
                     "JEA incident snapshot finished after {} ms: outcome={}, file={}, incidents={}",
                     elapsedMillis,
                     result.outcome(),
-                    result.fileName().orElse(""),
+                    result.backupId().map(value -> value.value()).orElse(""),
                     batch.comment());
         } else {
             JustEnoughAccidents.LOGGER.warn(

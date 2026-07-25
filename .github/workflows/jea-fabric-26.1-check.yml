@@ -3,19 +3,11 @@ name: JEA Fabric 26.1 check
 on:
   push:
     paths:
-      - "JustEnoughAccidents/Fabric/Fabric-26.1/**"
-      - "Fabric/Fabric-26.1/build.gradle"
-      - "Fabric/Fabric-26.1/gradle.properties"
-      - "Fabric/Fabric-26.1/settings.gradle"
-      - "Fabric/Fabric-26.1/src/main/java/com/leafuke/minebackup/api/v1/**"
+      - "Fabric/Fabric-26.1/**"
       - ".github/workflows/jea-fabric-26.1-check.yml"
   pull_request:
     paths:
-      - "JustEnoughAccidents/Fabric/Fabric-26.1/**"
-      - "Fabric/Fabric-26.1/build.gradle"
-      - "Fabric/Fabric-26.1/gradle.properties"
-      - "Fabric/Fabric-26.1/settings.gradle"
-      - "Fabric/Fabric-26.1/src/main/java/com/leafuke/minebackup/api/v1/**"
+      - "Fabric/Fabric-26.1/**"
       - ".github/workflows/jea-fabric-26.1-check.yml"
 
 permissions:
@@ -29,8 +21,17 @@ jobs:
         working-directory: JustEnoughAccidents/Fabric/Fabric-26.1
 
     steps:
-      - name: Check out repository
+      - name: Check out JustEnoughAccidents
         uses: actions/checkout@v4
+        with:
+          path: JustEnoughAccidents
+
+      # MineBackup API v2 must be merged before the corresponding JEA change.
+      - name: Check out MineBackup-Mod API
+        uses: actions/checkout@v4
+        with:
+          repository: Leafuke/MineBackup-Mod
+          path: MineBackup-Mod
 
       - name: Validate Gradle wrappers
         uses: gradle/actions/wrapper-validation@v4
@@ -47,5 +48,7 @@ jobs:
       - name: Make wrapper executable
         run: chmod +x gradlew
 
-      - name: Clean build
-        run: ./gradlew clean build --warning-mode all
+      - name: Composite clean build
+        run: >-
+          ./gradlew clean build --warning-mode all
+          -PminebackupDir="${{ github.workspace }}/MineBackup-Mod/Fabric/Fabric-26.1"

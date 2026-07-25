@@ -1,6 +1,6 @@
 package com.leafuke.jea.incident;
 
-import com.leafuke.minebackup.api.v1.BackupResult;
+import com.leafuke.minebackup.api.v2.BackupResult;
 
 public interface IncidentFeedback {
     void suppressedInFlight(IncidentBatch batch);

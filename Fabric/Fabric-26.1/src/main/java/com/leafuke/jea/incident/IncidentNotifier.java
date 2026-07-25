@@ -1,7 +1,8 @@
 package com.leafuke.jea.incident;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.leafuke.minebackup.api.v1.BackupResult;
+import com.leafuke.minebackup.api.v2.BackupId;
+import com.leafuke.minebackup.api.v2.BackupResult;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -67,7 +68,7 @@ public final class IncidentNotifier implements IncidentFeedback {
                         "just_enough_accidents.message.created",
                         reasons(batch),
                         elapsedMillis).withStyle(ChatFormatting.GREEN));
-                result.fileName().ifPresent(this::sendRestoreButtonToOwner);
+                result.backupId().ifPresent(this::sendRestoreButtonToOwner);
             }
             case NO_CHANGES -> send(batch, false, Component.translatable(
                     "just_enough_accidents.message.no_changes",
@@ -116,12 +117,12 @@ public final class IncidentNotifier implements IncidentFeedback {
         return profile == null ? null : server.getPlayerList().getPlayer(profile.id());
     }
 
-    private void sendRestoreButtonToOwner(String fileName) {
+    private void sendRestoreButtonToOwner(BackupId backupId) {
         var owner = owner();
         if (owner == null) {
             return;
         }
-        String command = "/mb restore " + StringArgumentType.escapeIfRequired(fileName);
+        String command = "/mb restore " + StringArgumentType.escapeIfRequired(backupId.value());
         owner.sendSystemMessage(Component.translatable("just_enough_accidents.action.restore")
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GREEN)
