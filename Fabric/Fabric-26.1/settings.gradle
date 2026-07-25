@@ -11,9 +11,17 @@ pluginManagement {
 
 rootProject.name = 'just-enough-accidents-fabric-26.1'
 
-includeBuild('../../../Fabric/Fabric-26.1') {
-	name = 'minebackup-fabric-26.1'
-	dependencySubstitution {
-		substitute module('com.leafuke.minebackup:minebackup') using project(':')
-	}
+// in Programs dir
+// def mineBackupDir = providers.gradleProperty('minebackupDir')
+//         .getOrElse('../../../MineBackup-Mod/Fabric/Fabric-26.1')
+
+// in Projects MineBackup-Mod dir
+def mineBackupDir = providers.gradleProperty('minebackupDir')
+        .getOrElse('../../../Fabric/Fabric-26.1')
+
+includeBuild(mineBackupDir) {
+    name = 'minebackup-fabric-26.1'
+    dependencySubstitution {
+        substitute module('com.leafuke.minebackup:minebackup') using project(':')
+    }
 }
