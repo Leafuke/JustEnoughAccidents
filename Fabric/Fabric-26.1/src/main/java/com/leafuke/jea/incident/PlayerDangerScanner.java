@@ -6,7 +6,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.OwnableEntity;
+import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.item.Items;
 
@@ -46,6 +49,10 @@ public final class PlayerDangerScanner {
                     sink);
             update(player, IncidentType.CREEPER,
                     config.creeper.enabled && isCreeperDanger(player), sink);
+            update(player, IncidentType.TNT,
+                    config.tnt.enabled && isTntDanger(player), sink);
+            update(player, IncidentType.PET_DANGER,
+                    config.petDanger.enabled && isPetDanger(player), sink);
         }
         active.keySet().retainAll(online);
     }
@@ -151,6 +158,50 @@ public final class PlayerDangerScanner {
                 return true;
             }
         }
+        return false;
+    }
+
+    private boolean isTntDanger(ServerPlayer player) {
+        double radius = config.tnt.radius;
+        var box = player.getBoundingBox().inflate(radius);
+        for (PrimedTnt tnt : player.level().getEntitiesOfClass(
+                PrimedTnt.class,
+                box,
+                entity -> entity.isAlive())) {
+            // 检查 TNT 的引信时间
+            if (tnt.getFuse() > config.tnt.maxFuseTicks) {
+                continue;
+            }
+            // 如果配置了排除水中 TNT，检查是否在水中
+            if (config.tnt.excludeUnderwater && tnt.isInWater()) {
+                continue;
+            }
+            // 检查距离
+            if (player.distanceToSqr(tnt) <= radius * radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPetDanger(ServerPlayer player) {
+        double radius = config.petDanger.radius;
+        var box = player.getBoundingBox().inflate(radius);
+
+        // 检查可驯服的动物（狼、猫、鹦鹉等）
+        for (TamableAnimal tamable : player.level().getEntitiesOfClass(
+                TamableAnimal.class,
+                box,
+                entity -> entity.isAlive() && entity.isTame())) {
+            if (tamable.getOwner() == player) {
+                float health = tamable.getHealth();
+                float maxHealth = tamable.getMaxHealth();
+                if (health / maxHealth <= config.petDanger.healthThreshold) {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 

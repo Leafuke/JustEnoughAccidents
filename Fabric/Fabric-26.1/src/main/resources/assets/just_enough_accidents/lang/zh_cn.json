@@ -7,6 +7,8 @@
   "just_enough_accidents.incident.totem": "不死图腾触发",
   "just_enough_accidents.incident.creeper": "附近苦力怕即将爆炸",
   "just_enough_accidents.incident.scoreboard": "计分板请求",
+  "just_enough_accidents.incident.tnt": "附近 TNT 即将爆炸",
+  "just_enough_accidents.incident.pet_danger": "宠物濒危",
   "just_enough_accidents.message.accepted": "[JEA] 检测到%s，正在创建事故现场快照……",
   "just_enough_accidents.message.created": "[JEA] 已为%s创建事故现场快照，用时 %s 毫秒。",
   "just_enough_accidents.message.no_changes": "[JEA] MineBackup 判定%s没有新变化，未创建新归档（用时 %s 毫秒）。",

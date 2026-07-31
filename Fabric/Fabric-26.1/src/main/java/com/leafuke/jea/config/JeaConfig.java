@@ -39,7 +39,7 @@ public final class JeaConfig {
     public static final class Backup {
         public String mode = "incremental";
         public String compressionMethod = "zstd";
-        public int compressionLevel = 11;
+        public int compressionLevel = 6;
 
         public void validate() {
             require(mode != null, "backup.mode must be a string");
@@ -77,6 +77,8 @@ public final class JeaConfig {
         public LowHealth lowHealth = new LowHealth();
         public Toggle totem = new Toggle();
         public Creeper creeper = new Creeper();
+        public Tnt tnt = new Tnt();
+        public PetDanger petDanger = new PetDanger();
 
         public void validate() {
             require(fatalFall != null, "detectors.fatalFall must be an object");
@@ -86,6 +88,8 @@ public final class JeaConfig {
             require(lowHealth != null, "detectors.lowHealth must be an object");
             require(totem != null, "detectors.totem must be an object");
             require(creeper != null, "detectors.creeper must be an object");
+            require(tnt != null, "detectors.tnt must be an object");
+            require(petDanger != null, "detectors.petDanger must be an object");
             requireRange(lowAir.triggerAir, 0, 300, "detectors.lowAir.triggerAir");
             requireRange(lowAir.rearmAir, 0, 300, "detectors.lowAir.rearmAir");
             require(lowAir.rearmAir > lowAir.triggerAir,
@@ -100,6 +104,14 @@ public final class JeaConfig {
                     "detectors.creeper.chargedRadius");
             require(creeper.chargedRadius >= creeper.normalRadius,
                     "detectors.creeper.chargedRadius must be at least normalRadius");
+            requireRange(tnt.radius, 1.0, 32.0,
+                    "detectors.tnt.radius");
+            requireRange(tnt.maxFuseTicks, 1, 80,
+                    "detectors.tnt.maxFuseTicks");
+            requireRange(petDanger.radius, 1.0, 64.0,
+                    "detectors.petDanger.radius");
+            requireRange(petDanger.healthThreshold, 0.01, 1.0,
+                    "detectors.petDanger.healthThreshold");
         }
     }
 
@@ -123,6 +135,17 @@ public final class JeaConfig {
     public static final class Creeper extends Toggle {
         public double normalRadius = 6.0;
         public double chargedRadius = 12.0;
+    }
+
+    public static final class Tnt extends Toggle {
+        public double radius = 12.0;
+        public int maxFuseTicks = 40;
+        public boolean excludeUnderwater = true;
+    }
+
+    public static final class PetDanger extends Toggle {
+        public double radius = 32.0;
+        public double healthThreshold = 0.25;
     }
 
     public static final class Scoreboard {

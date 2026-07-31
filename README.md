@@ -23,6 +23,8 @@ JEA 0.1.0 不支持专用服务器。专用服务器加载时只会记录一次�
 - 有效生命值（生命值加伤害吸收）过低
 - 不死图腾成功触发
 - 玩家附近有正在膨胀的苦力怕
+- 附近 TNT 即将爆炸（不包括水下 TNT）
+- 玩家的宠物生命值过低
 - 数据包或命令方块发出的计分板请求
 
 这些快照记录的是触发时的事故现场，不保证是事故发生前的绝对安全点。尤其是低生命和不死图腾检测，归档中可能已经包含伤害或图腾消耗。
@@ -41,7 +43,7 @@ JEA 0.1.0 不支持专用服务器。专用服务器加载时只会记录一次�
   "backup": {
     "mode": "incremental",
     "compressionMethod": "zstd",
-    "compressionLevel": 11
+    "compressionLevel": 6
   },
   "detectors": {
     "fatalFall": { "enabled": true },
@@ -64,6 +66,17 @@ JEA 0.1.0 不支持专用服务器。专用服务器加载时只会记录一次�
       "enabled": true,
       "normalRadius": 6.0,
       "chargedRadius": 12.0
+    },
+    "tnt": {
+      "enabled": true,
+      "radius": 12.0,
+      "maxFuseTicks": 40,
+      "excludeUnderwater": true
+    },
+    "petDanger": {
+      "enabled": true,
+      "radius": 32.0,
+      "healthThreshold": 0.25
     }
   },
   "scoreboard": { "enabled": true }

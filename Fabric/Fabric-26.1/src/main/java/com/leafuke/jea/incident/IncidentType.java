@@ -8,7 +8,9 @@ public enum IncidentType {
     LOW_HEALTH("low_health"),
     TOTEM("totem"),
     CREEPER("creeper"),
-    SCOREBOARD("scoreboard");
+    SCOREBOARD("scoreboard"),
+    TNT("tnt"),
+    PET_DANGER("pet_danger");
 
     private final String id;
 
