@@ -2,10 +2,14 @@ package com.leafuke.jea.runtime;
 
 import com.leafuke.jea.JustEnoughAccidents;
 import com.leafuke.jea.config.JeaConfigManager;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 public final class JeaRuntime {
     private static JeaSession session;
@@ -13,11 +17,12 @@ public final class JeaRuntime {
     private JeaRuntime() {
     }
 
-    public static void register() {
-        ServerLifecycleEvents.SERVER_STARTING.register(JeaRuntime::start);
-        ServerLifecycleEvents.SERVER_STOPPING.register(JeaRuntime::stop);
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> session = null);
-        ServerTickEvents.END_SERVER_TICK.register(JeaRuntime::tick);
+    public static void register(IEventBus modBus) {
+        // Register to the game event bus (NeoForge events)
+        NeoForge.EVENT_BUS.addListener(JeaRuntime::onServerStarting);
+        NeoForge.EVENT_BUS.addListener(JeaRuntime::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(JeaRuntime::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(JeaRuntime::onServerTick);
     }
 
     public static void signalTotem(ServerPlayer player) {
@@ -25,6 +30,22 @@ public final class JeaRuntime {
         if (current != null) {
             current.signalTotem(player);
         }
+    }
+
+    private static void onServerStarting(ServerStartingEvent event) {
+        start(event.getServer());
+    }
+
+    private static void onServerStopping(ServerStoppingEvent event) {
+        stop(event.getServer());
+    }
+
+    private static void onServerStopped(ServerStoppedEvent event) {
+        session = null;
+    }
+
+    private static void onServerTick(ServerTickEvent.Post event) {
+        tick(event.getServer());
     }
 
     private static void start(MinecraftServer server) {

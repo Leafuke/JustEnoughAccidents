@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.leafuke.jea.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "just_enough_accidents.refmap.json",
+  "mixins": [
+    "LivingEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

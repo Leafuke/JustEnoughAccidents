@@ -2,10 +2,14 @@ package com.leafuke.jea.runtime;
 
 import com.leafuke.jea.JustEnoughAccidents;
 import com.leafuke.jea.config.JeaConfigManager;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public final class JeaRuntime {
     private static JeaSession session;
@@ -14,10 +18,7 @@ public final class JeaRuntime {
     }
 
     public static void register() {
-        ServerLifecycleEvents.SERVER_STARTING.register(JeaRuntime::start);
-        ServerLifecycleEvents.SERVER_STOPPING.register(JeaRuntime::stop);
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> session = null);
-        ServerTickEvents.END_SERVER_TICK.register(JeaRuntime::tick);
+        MinecraftForge.EVENT_BUS.register(new EventHandler());
     }
 
     public static void signalTotem(ServerPlayer player) {
@@ -64,6 +65,30 @@ public final class JeaRuntime {
         var current = session;
         if (current != null) {
             current.tick();
+        }
+    }
+
+    private static final class EventHandler {
+        @SubscribeEvent
+        public void onServerStarting(ServerStartingEvent event) {
+            start(event.getServer());
+        }
+
+        @SubscribeEvent
+        public void onServerStopping(ServerStoppingEvent event) {
+            stop(event.getServer());
+        }
+
+        @SubscribeEvent
+        public void onServerStopped(ServerStoppedEvent event) {
+            session = null;
+        }
+
+        @SubscribeEvent
+        public void onServerTick(TickEvent.ServerTickEvent event) {
+            if (event.phase == TickEvent.Phase.END) {
+                tick(event.getServer());
+            }
         }
     }
 }

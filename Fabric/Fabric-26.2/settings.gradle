@@ -1,0 +1,27 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+rootProject.name = 'just-enough-accidents-fabric-26.2'
+
+// in Programs dir
+// def mineBackupDir = providers.gradleProperty('minebackupDir')
+//         .getOrElse('../../../MineBackup-Mod/Fabric/Fabric-26.2')
+
+// in Projects MineBackup-Mod dir
+def mineBackupDir = providers.gradleProperty('minebackupDir')
+        .getOrElse('../../../Fabric/Fabric-26.2')
+
+includeBuild(mineBackupDir) {
+    name = 'minebackup-fabric-26.2'
+    dependencySubstitution {
+        substitute module('com.leafuke.minebackup:minebackup') using project(':')
+    }
+}
