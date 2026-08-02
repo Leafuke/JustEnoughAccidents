@@ -2,9 +2,11 @@
 
 JEA 是 MineBackup 的事故检测扩展。它会在单人世界或 LAN 世界中发现若干高风险状态，并请求 MineBackup 与 FolderRewind 创建一次事故现场快照。
 
+完整的检测器、计分板触发、配置和归档边界见 [FolderRewind Minecraft 文档中的 JEA 页面](https://folderrewind.top/docs/guides/minecraft/just-enough-accidents)。
+
 ## 要求
 
-- MineBackup 3.2.0+
+- MineBackup 3.1.0+
 - FolderRewind 1.8.0+
 - MineRewind 1.8.0+
 - Fabric 26.1～26.1.2：Fabric Loader 0.18.4+、Fabric API、Java 25

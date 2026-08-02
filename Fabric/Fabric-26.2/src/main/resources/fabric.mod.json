@@ -26,6 +26,6 @@
     "minecraft": "~26.2",
     "java": ">=25",
     "fabric-api": "*",
-    "minebackup": ">=3.2.0"
+    "minebackup": ">=${minebackup_version}"
   }
 }
