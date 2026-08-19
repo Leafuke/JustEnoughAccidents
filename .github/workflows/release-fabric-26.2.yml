@@ -1,0 +1,191 @@
+name: Release Fabric 26.2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Resolve Fabric 26.2 version
+    runs-on: ubuntu-24.04
+    outputs:
+      mod_version: ${{ steps.version.outputs.mod_version }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_name: ${{ steps.version.outputs.release_name }}
+    steps:
+      - name: Check out JustEnoughAccidents
+        uses: actions/checkout@v4
+        with:
+          path: JustEnoughAccidents
+
+      - name: Read Fabric 26.2 version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          properties="JustEnoughAccidents/Fabric/Fabric-26.2/gradle.properties"
+          mod_version="$(sed -n 's/^mod_version=//p' "$properties" | head -n 1 | tr -d '\r')"
+          if [ -z "$mod_version" ]; then
+            echo "::error file=$properties::mod_version not found"
+            exit 1
+          fi
+          echo "mod_version=$mod_version" >> "$GITHUB_OUTPUT"
+          echo "release_tag=v$mod_version" >> "$GITHUB_OUTPUT"
+          echo "release_name=Just Enough Accidents Fabric 26.2 v$mod_version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and verify Fabric 26.2
+    needs: preflight
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: JustEnoughAccidents/Fabric/Fabric-26.2
+    steps:
+      - name: Check out JustEnoughAccidents
+        uses: actions/checkout@v4
+        with:
+          path: JustEnoughAccidents
+
+      - name: Check out MineBackup-Mod main
+        uses: actions/checkout@v4
+        with:
+          repository: Leafuke/MineBackup-Mod
+          ref: main
+          path: MineBackup-Mod
+
+      - name: Validate Gradle wrappers
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Composite clean build
+        run: >-
+          ./gradlew clean build --warning-mode all --no-daemon
+          -PminebackupDir="${{ github.workspace }}/MineBackup-Mod/Fabric/Fabric-26.2"
+
+      - name: Verify release JAR
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          project_dir="$GITHUB_WORKSPACE/JustEnoughAccidents/Fabric/Fabric-26.2"
+          libs="$project_dir/build/libs"
+          mapfile -t jars < <(find "$libs" -maxdepth 1 -type f -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-dev.jar' ! -name '*-javadoc.jar' | sort)
+          if [ "${#jars[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one releasable JAR in $libs, found ${#jars[@]}"
+            printf '%s\n' "${jars[@]}"
+            exit 1
+          fi
+
+          jar_file="${jars[0]}"
+          if ! unzip -Z1 "$jar_file" | grep -Fx 'com/leafuke/jea/JustEnoughAccidents.class' >/dev/null; then
+            echo "::error::JEA main class is missing from $jar_file"
+            exit 1
+          fi
+
+          min_version="$(sed -n 's/^minebackup_version=//p' "$project_dir/gradle.properties" | head -n 1 | tr -d '\r')"
+          source_version="$(sed -n 's/^mod_version=//p' "$GITHUB_WORKSPACE/MineBackup-Mod/Fabric/Fabric-26.2/gradle.properties" | head -n 1 | tr -d '\r')"
+          if [ -z "$min_version" ] || [ -z "$source_version" ]; then
+            echo "::error::Could not resolve MineBackup dependency versions"
+            exit 1
+          fi
+          if [ "$(printf '%s\n' "$min_version" "$source_version" | sort -V | head -n 1)" != "$min_version" ]; then
+            echo "::error::MineBackup source version $source_version is lower than required $min_version"
+            exit 1
+          fi
+
+          manifest="$(unzip -p "$jar_file" fabric.mod.json)"
+          actual_dependency="$(jq -r '.depends.minebackup // empty' <<< "$manifest")"
+          if [ "$actual_dependency" != ">=$min_version" ]; then
+            echo "::error::Expected MineBackup dependency >=$min_version, found $actual_dependency"
+            exit 1
+          fi
+          jq -e '.entrypoints.main | length > 0' <<< "$manifest" >/dev/null
+          jq -e '.mixins[]? | select(. == "just_enough_accidents.mixins.json")' <<< "$manifest" >/dev/null
+          if ! unzip -Z1 "$jar_file" | grep -Fx 'just_enough_accidents.mixins.json' >/dev/null; then
+            echo "::error::Mixin configuration is missing from $jar_file"
+            exit 1
+          fi
+          if unzip -Z1 "$jar_file" | grep '^com/leafuke/minebackup/' >/dev/null; then
+            echo "::error::Release JAR unexpectedly contains MineBackup implementation classes"
+            exit 1
+          fi
+
+      - name: Prepare release asset
+        shell: bash
+        working-directory: .
+        env:
+          MOD_VERSION: ${{ needs.preflight.outputs.mod_version }}
+        run: |
+          set -euo pipefail
+          libs="$GITHUB_WORKSPACE/JustEnoughAccidents/Fabric/Fabric-26.2/build/libs"
+          mapfile -t jars < <(find "$libs" -maxdepth 1 -type f -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-dev.jar' ! -name '*-javadoc.jar' | sort)
+          if [ "${#jars[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one releasable JAR, found ${#jars[@]}"
+            exit 1
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/release-assets"
+          cp "${jars[0]}" "$GITHUB_WORKSPACE/release-assets/just-enough-accidents-fabric-26.2-$MOD_VERSION.jar"
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-fabric-26.2
+          path: release-assets/*.jar
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - preflight
+      - build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download release asset
+        uses: actions/download-artifact@v4
+        with:
+          name: release-fabric-26.2
+          path: release-assets
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+          RELEASE_NAME: ${{ needs.preflight.outputs.release_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_NAME" \
+              --target "$GITHUB_SHA"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_NAME" \
+              --target "$GITHUB_SHA" \
+              --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/*.jar \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
