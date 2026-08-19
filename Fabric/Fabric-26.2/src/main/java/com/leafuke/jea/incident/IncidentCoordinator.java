@@ -38,8 +38,17 @@ public final class IncidentCoordinator implements AutoCloseable {
             IncidentBackupStrategy strategy,
             IncidentFeedback feedback,
             int cooldownSeconds) {
+        this(server, strategy, feedback, cooldownSeconds, () -> false);
+    }
+
+    public IncidentCoordinator(
+            MinecraftServer server,
+            IncidentBackupStrategy strategy,
+            IncidentFeedback feedback,
+            int cooldownSeconds,
+            BooleanSupplier maintenanceInFlight) {
         this(strategy, feedback, cooldownSeconds, Clock.systemUTC(), System::nanoTime, server,
-                () -> false);
+                maintenanceInFlight);
     }
 
     IncidentCoordinator(

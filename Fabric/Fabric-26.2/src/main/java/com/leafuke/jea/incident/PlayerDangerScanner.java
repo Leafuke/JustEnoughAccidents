@@ -28,14 +28,16 @@ public final class PlayerDangerScanner {
         this.config = config;
     }
 
-    public void scan(MinecraftServer server, Consumer<IncidentSignal> sink) {
+    public DangerScanState scan(MinecraftServer server, Consumer<IncidentSignal> sink) {
         var online = new HashSet<UUID>();
+        int eligiblePlayerCount = 0;
         for (var player : server.getPlayerList().getPlayers()) {
             online.add(player.getUUID());
             if (!isEligible(player)) {
                 active.remove(player.getUUID());
                 continue;
             }
+            eligiblePlayerCount++;
 
             update(player, IncidentType.FATAL_FALL,
                     config.fatalFall.enabled && isFatalFall(player), sink);
@@ -55,6 +57,8 @@ public final class PlayerDangerScanner {
                     config.petDanger.enabled && isPetDanger(player), sink);
         }
         active.keySet().retainAll(online);
+        boolean activeDanger = active.values().stream().anyMatch(playerActive -> !playerActive.isEmpty());
+        return new DangerScanState(eligiblePlayerCount, activeDanger);
     }
 
     public boolean isEligible(ServerPlayer player) {

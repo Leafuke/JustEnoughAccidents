@@ -1,6 +1,7 @@
 package com.leafuke.jea.runtime;
 
 import com.leafuke.jea.JustEnoughAccidents;
+import com.leafuke.jea.anchor.SafeAnchorCoordinator;
 import com.leafuke.jea.config.JeaConfig;
 import com.leafuke.jea.incident.CreateNowBackupStrategy;
 import com.leafuke.jea.incident.IncidentCoordinator;
@@ -17,6 +18,7 @@ public final class JeaSession implements AutoCloseable {
     private final JeaConfig config;
     private final PlayerDangerScanner scanner;
     private final ScoreboardTrigger scoreboardTrigger;
+    private final SafeAnchorCoordinator safeAnchorCoordinator;
     private final IncidentCoordinator coordinator;
 
     public JeaSession(MinecraftServer server, JeaConfig config) {
@@ -24,11 +26,13 @@ public final class JeaSession implements AutoCloseable {
         this.config = config;
         this.scanner = new PlayerDangerScanner(config.detectors);
         this.scoreboardTrigger = new ScoreboardTrigger();
+        this.safeAnchorCoordinator = new SafeAnchorCoordinator(config.safeAnchor, config.backup, server);
         this.coordinator = new IncidentCoordinator(
                 server,
                 new CreateNowBackupStrategy(config.backup),
                 new IncidentNotifier(server),
-                config.cooldownSeconds);
+                config.cooldownSeconds,
+                safeAnchorCoordinator::maintenanceInFlight);
     }
 
     public void start() {
@@ -42,21 +46,28 @@ public final class JeaSession implements AutoCloseable {
 
     public void tick() {
         if (config.scoreboard.enabled && scoreboardTrigger.consume(server)) {
-            coordinator.signal(IncidentSignal.global(IncidentType.SCOREBOARD));
+            signal(IncidentSignal.global(IncidentType.SCOREBOARD));
         }
-        scanner.scan(server, coordinator::signal);
+        var scanState = scanner.scan(server, this::signal);
         coordinator.flush();
+        safeAnchorCoordinator.tick(scanState, coordinator.hasPending(), coordinator.isInFlight());
     }
 
     public void signalTotem(ServerPlayer player) {
         if (config.detectors.totem.enabled && scanner.isEligible(player)) {
-            coordinator.signal(IncidentSignal.player(IncidentType.TOTEM, player));
+            signal(IncidentSignal.player(IncidentType.TOTEM, player));
         }
+    }
+
+    private void signal(IncidentSignal signal) {
+        safeAnchorCoordinator.onIncidentSignal();
+        coordinator.signal(signal);
     }
 
     @Override
     public void close() {
         scanner.clear();
         coordinator.close();
+        safeAnchorCoordinator.close();
     }
 }

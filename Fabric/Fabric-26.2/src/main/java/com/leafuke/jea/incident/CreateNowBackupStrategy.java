@@ -19,12 +19,16 @@ public final class CreateNowBackupStrategy implements IncidentBackupStrategy {
 
     @Override
     public OperationHandle<BackupResult> submit(IncidentBatch batch) {
-        var request = BackupRequest.create(JustEnoughAccidents.MOD_ID, batch.comment())
+        return MineBackupApi.getInstance().backupCurrent(
+                createRequest(JustEnoughAccidents.MOD_ID, config, batch.comment()));
+    }
+
+    public static BackupRequest createRequest(String callerId, JeaConfig.Backup config, String comment) {
+        return BackupRequest.create(callerId, comment)
                 .withParameters(Map.of(
                         "backup_mode", config.mode,
                         "compression_method", config.compressionMethod,
                         "compression_level", Integer.toString(config.compressionLevel)))
                 .withPresentation(OperationPresentation.callerManaged());
-        return MineBackupApi.getInstance().backupCurrent(request);
     }
 }
