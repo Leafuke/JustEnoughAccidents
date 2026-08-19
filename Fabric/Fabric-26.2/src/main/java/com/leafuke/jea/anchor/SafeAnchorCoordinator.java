@@ -6,6 +6,7 @@ import com.leafuke.jea.incident.CreateNowBackupStrategy;
 import com.leafuke.jea.incident.DangerScanState;
 import com.leafuke.minebackup.api.v2.BackupCatalogRequest;
 import com.leafuke.minebackup.api.v2.BackupCatalogResult;
+import com.leafuke.minebackup.api.v2.BackupEntry;
 import com.leafuke.minebackup.api.v2.BackupRequest;
 import com.leafuke.minebackup.api.v2.BackupResult;
 import com.leafuke.minebackup.api.v2.MineBackupApi;
@@ -16,8 +17,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 public final class SafeAnchorCoordinator implements AutoCloseable {
     private static final String CALLER_ID = JustEnoughAccidents.MOD_ID + ".safe_anchor";
@@ -28,9 +31,9 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
     private final Clock clock;
     private final Executor serverExecutor;
     private final Operations operations;
-    private Instant quietSince;
-    private Instant lastAnchorRefreshSatisfiedAt;
-    private Instant retryAfter;
+    private Optional<Instant> quietSince = Optional.empty();
+    private Optional<Instant> lastAnchorRefreshSatisfiedAt = Optional.empty();
+    private Optional<Instant> retryAfter = Optional.empty();
     private boolean bootstrapComplete;
     private boolean maintenanceInFlight;
     private boolean closed;
@@ -56,7 +59,7 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
     }
 
     public void onIncidentSignal() {
-        quietSince = null;
+        quietSince = Optional.empty();
     }
 
     public void tick(DangerScanState scanState, boolean incidentPending, boolean incidentInFlight) {
@@ -67,11 +70,11 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
 
         Instant now = clock.instant();
         if (!scanState.isQuiet()) {
-            quietSince = null;
+            quietSince = Optional.empty();
             return;
         }
-        if (quietSince == null) {
-            quietSince = now;
+        if (quietSince.isEmpty()) {
+            quietSince = Optional.of(now);
         }
         if (incidentPending || incidentInFlight || maintenanceInFlight || isBackoffActive(now)) {
             return;
@@ -88,6 +91,33 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
 
     public boolean maintenanceInFlight() {
         return maintenanceInFlight;
+    }
+
+    public boolean enabled() {
+        return config.enabled;
+    }
+
+    public void lookupRecovery(
+            Instant incidentAt,
+            Consumer<Optional<BackupEntry>> onSuccess,
+            Consumer<Throwable> onFailure) {
+        Objects.requireNonNull(incidentAt, "incidentAt");
+        Objects.requireNonNull(onSuccess, "onSuccess");
+        Objects.requireNonNull(onFailure, "onFailure");
+        if (closed || !config.enabled) {
+            return;
+        }
+
+        maintenanceInFlight = true;
+        final CompletionStage<BackupCatalogResult> stage;
+        try {
+            stage = operations.listBackups();
+        } catch (RuntimeException ex) {
+            finishRecovery(incidentAt, onSuccess, onFailure, null, ex);
+            return;
+        }
+        stage.whenComplete((result, throwable) -> executeOnServer(
+                () -> finishRecovery(incidentAt, onSuccess, onFailure, result, throwable)));
     }
 
     private void bootstrap() {
@@ -113,10 +143,9 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
         }
 
         lastAnchorRefreshSatisfiedAt = SafeAnchorSelector.latestBefore(result.entries(), Instant.MAX)
-                .flatMap(entry -> entry.createdAt())
-                .orElse(null);
+                .flatMap(BackupEntry::createdAt);
         bootstrapComplete = true;
-        retryAfter = null;
+        retryAfter = Optional.empty();
         JustEnoughAccidents.LOGGER.info("JEA safe-anchor bootstrap catalog completed.");
     }
 
@@ -149,8 +178,8 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
         }
         if (result.outcome() == BackupResult.Outcome.CREATED
                 || result.outcome() == BackupResult.Outcome.NO_CHANGES) {
-            lastAnchorRefreshSatisfiedAt = clock.instant();
-            retryAfter = null;
+            lastAnchorRefreshSatisfiedAt = Optional.of(clock.instant());
+            retryAfter = Optional.empty();
             JustEnoughAccidents.LOGGER.info(
                     "JEA safe anchor refresh satisfied: outcome={}", result.outcome());
             return;
@@ -161,28 +190,56 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
         scheduleRetry("safe-anchor backup", failure, null);
     }
 
+    private void finishRecovery(
+            Instant incidentAt,
+            Consumer<Optional<BackupEntry>> onSuccess,
+            Consumer<Throwable> onFailure,
+            BackupCatalogResult result,
+            Throwable throwable) {
+        if (closed) {
+            return;
+        }
+        maintenanceInFlight = false;
+        if (throwable != null) {
+            scheduleRetry("safe-anchor recovery catalog", "exception", throwable);
+            onFailure.accept(throwable);
+            return;
+        }
+        if (result == null || result.outcome() != BackupCatalogResult.Outcome.SUCCESS) {
+            String detail = result == null ? "missing result" : result.outcome().name();
+            var failure = new IllegalStateException("safe-anchor recovery catalog failed: " + detail);
+            scheduleRetry("safe-anchor recovery catalog", detail, null);
+            onFailure.accept(failure);
+            return;
+        }
+        onSuccess.accept(SafeAnchorSelector.latestBefore(result.entries(), incidentAt));
+    }
+
     private boolean quietElapsed(Instant now) {
-        return !now.isBefore(quietSince.plusSeconds(config.quietSeconds));
+        return !now.isBefore(quietSince.orElseThrow().plusSeconds(config.quietSeconds));
     }
 
     private boolean refreshDue(Instant now) {
-        return lastAnchorRefreshSatisfiedAt == null
-                || !now.isBefore(lastAnchorRefreshSatisfiedAt.plus(Duration.ofMinutes(config.refreshMinutes)));
+        return lastAnchorRefreshSatisfiedAt.isEmpty()
+                || !now.isBefore(lastAnchorRefreshSatisfiedAt.orElseThrow()
+                .plus(Duration.ofMinutes(config.refreshMinutes)));
     }
 
     private boolean isBackoffActive(Instant now) {
-        return retryAfter != null && now.isBefore(retryAfter);
+        return retryAfter.isPresent() && now.isBefore(retryAfter.orElseThrow());
     }
 
     private void scheduleRetry(String operation, String detail, Throwable throwable) {
         maintenanceInFlight = false;
-        retryAfter = clock.instant().plus(RETRY_BACKOFF);
+        retryAfter = Optional.of(clock.instant().plus(RETRY_BACKOFF));
         if (throwable == null) {
             JustEnoughAccidents.LOGGER.warn(
-                    "JEA {} failed ({}); retrying no earlier than {}.", operation, detail, retryAfter);
+                    "JEA {} failed ({}); retrying no earlier than {}.",
+                    operation, detail, retryAfter.orElseThrow());
         } else {
             JustEnoughAccidents.LOGGER.warn(
-                    "JEA {} failed ({}); retrying no earlier than {}.", operation, detail, retryAfter, throwable);
+                    "JEA {} failed ({}); retrying no earlier than {}.",
+                    operation, detail, retryAfter.orElseThrow(), throwable);
         }
     }
 
@@ -198,7 +255,7 @@ public final class SafeAnchorCoordinator implements AutoCloseable {
     public void close() {
         closed = true;
         maintenanceInFlight = false;
-        quietSince = null;
+        quietSince = Optional.empty();
     }
 
     interface Operations {

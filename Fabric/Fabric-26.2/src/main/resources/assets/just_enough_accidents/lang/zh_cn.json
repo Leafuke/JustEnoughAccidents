@@ -17,5 +17,8 @@
   "just_enough_accidents.message.failed": "[JEA] %s的快照创建失败：%s",
   "just_enough_accidents.message.suppressed_in_flight": "[JEA] 检测到%s，但已有世界操作正在执行；本次险兆不会排队。",
   "just_enough_accidents.message.suppressed_cooldown": "[JEA] 在全局冷却期间检测到%s（剩余 %s 秒）；本次险兆不会排队。",
-  "just_enough_accidents.action.restore": "[还原此 JEA 快照]"
+  "just_enough_accidents.message.safe_anchor_unavailable": "[JEA] 未找到事故发生前的安全锚点。",
+  "just_enough_accidents.message.safe_anchor_lookup_failed": "[JEA] 安全锚点查询失败；仅可还原事故现场快照。",
+  "just_enough_accidents.action.restore_safe_anchor": "[还原安全锚点]",
+  "just_enough_accidents.action.restore_incident_site": "[还原事故现场快照]"
 }

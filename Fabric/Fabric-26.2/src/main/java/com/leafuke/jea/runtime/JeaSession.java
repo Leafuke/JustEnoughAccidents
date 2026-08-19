@@ -30,7 +30,7 @@ public final class JeaSession implements AutoCloseable {
         this.coordinator = new IncidentCoordinator(
                 server,
                 new CreateNowBackupStrategy(config.backup),
-                new IncidentNotifier(server),
+                new IncidentNotifier(server, safeAnchorCoordinator),
                 config.cooldownSeconds,
                 safeAnchorCoordinator::maintenanceInFlight);
     }

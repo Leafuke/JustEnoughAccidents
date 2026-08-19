@@ -1,6 +1,9 @@
 package com.leafuke.jea.incident;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.leafuke.jea.JustEnoughAccidents;
+import com.leafuke.jea.anchor.SafeAnchorCoordinator;
+import com.leafuke.minebackup.api.v2.BackupEntry;
 import com.leafuke.minebackup.api.v2.BackupId;
 import com.leafuke.minebackup.api.v2.BackupResult;
 import net.minecraft.ChatFormatting;
@@ -11,13 +14,16 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.Set;
 
 public final class IncidentNotifier implements IncidentFeedback {
     private final MinecraftServer server;
+    private final SafeAnchorCoordinator safeAnchorCoordinator;
 
-    public IncidentNotifier(MinecraftServer server) {
+    public IncidentNotifier(MinecraftServer server, SafeAnchorCoordinator safeAnchorCoordinator) {
         this.server = server;
+        this.safeAnchorCoordinator = safeAnchorCoordinator;
     }
 
     @Override
@@ -68,7 +74,7 @@ public final class IncidentNotifier implements IncidentFeedback {
                         "just_enough_accidents.message.created",
                         reasons(batch),
                         elapsedMillis).withStyle(ChatFormatting.GREEN));
-                result.backupId().ifPresent(this::sendRestoreButtonToOwner);
+                result.backupId().ifPresent(backupId -> offerRecoveryTargets(batch, backupId));
             }
             case NO_CHANGES -> send(batch, false, Component.translatable(
                     "just_enough_accidents.message.no_changes",
@@ -117,17 +123,57 @@ public final class IncidentNotifier implements IncidentFeedback {
         return profile == null ? null : server.getPlayerList().getPlayer(profile.id());
     }
 
-    private void sendRestoreButtonToOwner(BackupId backupId) {
+    private void offerRecoveryTargets(IncidentBatch batch, BackupId incidentBackupId) {
+        if (!safeAnchorCoordinator.enabled()) {
+            sendIncidentRestoreButtonToOwner(incidentBackupId);
+            return;
+        }
+        safeAnchorCoordinator.lookupRecovery(
+                batch.detectedAt(),
+                safeAnchor -> sendRecoveryTargets(incidentBackupId, safeAnchor),
+                throwable -> {
+                    JustEnoughAccidents.LOGGER.warn(
+                            "Could not find a pre-incident JEA safe anchor for {}",
+                            batch.comment(), throwable);
+                    var owner = owner();
+                    if (owner != null) {
+                        owner.sendSystemMessage(Component.translatable(
+                                "just_enough_accidents.message.safe_anchor_lookup_failed")
+                                .withStyle(ChatFormatting.YELLOW));
+                    }
+                    sendIncidentRestoreButtonToOwner(incidentBackupId);
+                });
+    }
+
+    private void sendRecoveryTargets(BackupId incidentBackupId, Optional<BackupEntry> safeAnchor) {
         var owner = owner();
         if (owner == null) {
             return;
         }
+        safeAnchor.ifPresentOrElse(
+                anchor -> owner.sendSystemMessage(restoreButton(
+                        anchor.backupId(), "just_enough_accidents.action.restore_safe_anchor")),
+                () -> owner.sendSystemMessage(Component.translatable(
+                        "just_enough_accidents.message.safe_anchor_unavailable")
+                        .withStyle(ChatFormatting.YELLOW)));
+        owner.sendSystemMessage(restoreButton(
+                incidentBackupId, "just_enough_accidents.action.restore_incident_site"));
+    }
+
+    private void sendIncidentRestoreButtonToOwner(BackupId backupId) {
+        var owner = owner();
+        if (owner != null) {
+            owner.sendSystemMessage(restoreButton(backupId, "just_enough_accidents.action.restore_incident_site"));
+        }
+    }
+
+    private static Component restoreButton(BackupId backupId, String translationKey) {
         String command = "/mb restore " + StringArgumentType.escapeIfRequired(backupId.value());
-        owner.sendSystemMessage(Component.translatable("just_enough_accidents.action.restore")
+        return Component.translatable(translationKey)
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GREEN)
                         .withUnderlined(true)
-                        .withClickEvent(new ClickEvent.RunCommand(command))));
+                        .withClickEvent(new ClickEvent.RunCommand(command)));
     }
 
     private static MutableComponent reasons(IncidentBatch batch) {

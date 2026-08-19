@@ -22,6 +22,7 @@ import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -132,6 +133,27 @@ class SafeAnchorCoordinatorTest {
         assertEquals(2, fixture.operations.backupRequests.size());
     }
 
+    @Test
+    void recoveryLookupSelectsTheAnchorFromBeforeTheIncidentAndMarksMaintenanceActive() {
+        var fixture = fixture(0, 30);
+        bootstrapWithoutAnchor(fixture);
+        fixture.operations.startNextCatalog();
+        var selected = new AtomicReference<Optional<BackupEntry>>();
+        Instant incidentAt = Instant.parse("2026-08-19T10:45:00Z");
+
+        fixture.coordinator.lookupRecovery(incidentAt, selected::set, throwable -> {
+            throw new AssertionError(throwable);
+        });
+
+        assertEquals(true, fixture.coordinator.maintenanceInFlight());
+        fixture.operations.completeCatalog(BackupCatalogResult.success(List.of(
+                anchorAt(Instant.parse("2026-08-19T10:30:00Z")),
+                anchorAt(Instant.parse("2026-08-19T10:50:00Z")))));
+
+        assertEquals(Optional.of(anchorAt(Instant.parse("2026-08-19T10:30:00Z"))), selected.get());
+        assertEquals(false, fixture.coordinator.maintenanceInFlight());
+    }
+
     private static void assertRefreshSatisfied(BackupResult.Outcome outcome) {
         var fixture = fixture(0, 30);
         bootstrapWithoutAnchor(fixture);
@@ -191,6 +213,10 @@ class SafeAnchorCoordinatorTest {
 
         void completeCatalog(BackupCatalogResult result) {
             catalog.complete(result);
+        }
+
+        void startNextCatalog() {
+            catalog = new CompletableFuture<>();
         }
 
         void completeBackup(BackupResult result) {
