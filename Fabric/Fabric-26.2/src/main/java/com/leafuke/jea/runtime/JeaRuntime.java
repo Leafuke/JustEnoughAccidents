@@ -38,12 +38,6 @@ public final class JeaRuntime {
             return;
         }
 
-        if (server.isDedicatedServer()) {
-            JustEnoughAccidents.LOGGER.warn(
-                    "JEA 0.2.0 does not support dedicated servers; all detection and backup requests are disabled.");
-            return;
-        }
-
         if (!result.config().enabled) {
             JustEnoughAccidents.LOGGER.info("JEA is disabled by configuration for this server session.");
             return;

@@ -10,6 +10,7 @@ import com.leafuke.jea.incident.IncidentSignal;
 import com.leafuke.jea.incident.IncidentType;
 import com.leafuke.jea.incident.PlayerDangerScanner;
 import com.leafuke.jea.incident.ScoreboardTrigger;
+import com.leafuke.minebackup.api.v2.MineBackupApi;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -36,12 +37,21 @@ public final class JeaSession implements AutoCloseable {
     }
 
     public void start() {
+        String sessionMode = server.isDedicatedServer() ? "dedicated" : "integrated";
         JustEnoughAccidents.LOGGER.info(
                 "JEA session enabled for '{}': mode={}, compression={} level={}",
                 server.getWorldData().getLevelName(),
-                config.backup.mode,
+                sessionMode,
                 config.backup.compressionMethod,
                 config.backup.compressionLevel);
+        if (server.isDedicatedServer()) {
+            var status = MineBackupApi.getInstance().runtimeStatus();
+            if (!status.dedicatedRestoreAvailable()) {
+                JustEnoughAccidents.LOGGER.warn(
+                        "JEA dedicated detection is enabled, but dedicated restore is unavailable: {}",
+                        status.dedicatedRestoreUnavailableReason().orElse("unknown"));
+            }
+        }
     }
 
     public void tick() {
