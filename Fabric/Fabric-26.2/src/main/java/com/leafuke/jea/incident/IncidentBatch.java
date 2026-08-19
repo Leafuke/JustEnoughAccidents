@@ -1,14 +1,21 @@
 package com.leafuke.jea.incident;
 
 import java.util.EnumSet;
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-public record IncidentBatch(List<IncidentSignal> signals) {
+public record IncidentBatch(List<IncidentSignal> signals, Instant detectedAt) {
     public IncidentBatch {
         signals = List.copyOf(signals);
+        Objects.requireNonNull(detectedAt, "detectedAt");
+    }
+
+    public IncidentBatch(List<IncidentSignal> signals) {
+        this(signals, Instant.EPOCH);
     }
 
     public Set<IncidentType> types() {

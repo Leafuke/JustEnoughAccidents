@@ -5,21 +5,28 @@ import com.leafuke.minebackup.api.v2.BackupResult;
 import com.leafuke.minebackup.api.v2.OperationPhase;
 import com.leafuke.minebackup.api.v2.OperationHandle;
 import net.minecraft.server.MinecraftServer;
-
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 
 public final class IncidentCoordinator implements AutoCloseable {
-    private final MinecraftServer server;
     private final IncidentBackupStrategy strategy;
     private final IncidentFeedback feedback;
+    private final Clock clock;
+    private final LongSupplier nanoTime;
+    private final Executor serverExecutor;
+    private final BooleanSupplier maintenanceInFlight;
     private final long cooldownNanos;
-    private final EnumMap<IncidentType, LinkedHashMap<Object, IncidentSignal>> pending =
+    private final EnumMap<IncidentType, LinkedHashMap<Object, TimedIncidentSignal>> pending =
             new EnumMap<>(IncidentType.class);
     private boolean inFlight;
     private boolean closed;
@@ -31,9 +38,24 @@ public final class IncidentCoordinator implements AutoCloseable {
             IncidentBackupStrategy strategy,
             IncidentFeedback feedback,
             int cooldownSeconds) {
-        this.server = server;
+        this(strategy, feedback, cooldownSeconds, Clock.systemUTC(), System::nanoTime, server,
+                () -> false);
+    }
+
+    IncidentCoordinator(
+            IncidentBackupStrategy strategy,
+            IncidentFeedback feedback,
+            int cooldownSeconds,
+            Clock clock,
+            LongSupplier nanoTime,
+            Executor serverExecutor,
+            BooleanSupplier maintenanceInFlight) {
         this.strategy = strategy;
         this.feedback = feedback;
+        this.clock = clock;
+        this.nanoTime = nanoTime;
+        this.serverExecutor = serverExecutor;
+        this.maintenanceInFlight = maintenanceInFlight;
         this.cooldownNanos = TimeUnit.SECONDS.toNanos(cooldownSeconds);
     }
 
@@ -43,7 +65,7 @@ public final class IncidentCoordinator implements AutoCloseable {
         }
         Object key = signal.playerId() == null ? IncidentType.SCOREBOARD : signal.playerId();
         pending.computeIfAbsent(signal.type(), ignored -> new LinkedHashMap<>())
-                .putIfAbsent(key, signal);
+                .putIfAbsent(key, new TimedIncidentSignal(signal, clock.instant()));
     }
 
     public void flush() {
@@ -51,15 +73,26 @@ public final class IncidentCoordinator implements AutoCloseable {
             return;
         }
 
+        if (maintenanceInFlight.getAsBoolean()) {
+            JustEnoughAccidents.LOGGER.info("Deferred JEA incident snapshot because JEA maintenance is active.");
+            return;
+        }
+
         var signals = new ArrayList<IncidentSignal>();
+        Instant detectedAt = null;
         for (var type : IncidentType.values()) {
             var byActor = pending.get(type);
             if (byActor != null) {
-                signals.addAll(byActor.values());
+                for (var timedSignal : byActor.values()) {
+                    signals.add(timedSignal.signal());
+                    if (detectedAt == null || timedSignal.detectedAt().isBefore(detectedAt)) {
+                        detectedAt = timedSignal.detectedAt();
+                    }
+                }
             }
         }
         pending.clear();
-        var batch = new IncidentBatch(signals);
+        var batch = new IncidentBatch(signals, Objects.requireNonNull(detectedAt));
 
         if (inFlight) {
             JustEnoughAccidents.LOGGER.warn(
@@ -69,7 +102,7 @@ public final class IncidentCoordinator implements AutoCloseable {
             return;
         }
 
-        long now = System.nanoTime();
+        long now = nanoTime.getAsLong();
         if (now < cooldownUntilNanos) {
             long remainingMillis = Duration.ofNanos(cooldownUntilNanos - now).toMillis();
             JustEnoughAccidents.LOGGER.info(
@@ -80,7 +113,7 @@ public final class IncidentCoordinator implements AutoCloseable {
             return;
         }
 
-        long startedAt = System.nanoTime();
+        long startedAt = nanoTime.getAsLong();
         final OperationHandle<BackupResult> handle;
         try {
             handle = strategy.submit(batch);
@@ -111,7 +144,7 @@ public final class IncidentCoordinator implements AutoCloseable {
 
         handle.completion().whenComplete((result, throwable) -> {
             try {
-                server.execute(() -> finish(
+                serverExecutor.execute(() -> finish(
                         handle.id(),
                         batch,
                         result,
@@ -134,7 +167,10 @@ public final class IncidentCoordinator implements AutoCloseable {
             inFlight = false;
             activeOperationId = null;
         }
-        long elapsedMillis = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+        if (closed) {
+            return;
+        }
+        long elapsedMillis = Duration.ofNanos(nanoTime.getAsLong() - startedAt).toMillis();
         feedback.completed(batch, result, throwable, elapsedMillis);
         if (throwable != null) {
             JustEnoughAccidents.LOGGER.error(
@@ -170,5 +206,18 @@ public final class IncidentCoordinator implements AutoCloseable {
     public void close() {
         closed = true;
         pending.clear();
+        inFlight = false;
+        activeOperationId = null;
+    }
+
+    public boolean hasPending() {
+        return !pending.isEmpty();
+    }
+
+    public boolean isInFlight() {
+        return inFlight;
+    }
+
+    private record TimedIncidentSignal(IncidentSignal signal, Instant detectedAt) {
     }
 }
