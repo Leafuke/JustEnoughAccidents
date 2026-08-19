@@ -3,7 +3,7 @@
   "id": "just_enough_accidents",
   "version": "${version}",
   "name": "Just Enough Accidents",
-  "description": "Creates MineBackup accident-site snapshots when a singleplayer or LAN world enters a dangerous state.",
+  "description": "Creates MineBackup accident-site snapshots and safe anchors when a world enters a dangerous state.",
   "authors": [
     "Leafuke"
   ],
