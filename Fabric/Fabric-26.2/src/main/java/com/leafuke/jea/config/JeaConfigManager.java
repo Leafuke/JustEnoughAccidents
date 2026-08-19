@@ -20,21 +20,23 @@ public final class JeaConfigManager {
             .setPrettyPrinting()
             .disableHtmlEscaping()
             .create();
-    private static final Path CONFIG_PATH = FabricLoader.getInstance()
-            .getConfigDir()
-            .resolve("just-enough-accidents.json");
-
     private JeaConfigManager() {
     }
 
     public static LoadResult load() {
+        return load(FabricLoader.getInstance()
+                .getConfigDir()
+                .resolve("just-enough-accidents.json"));
+    }
+
+    static LoadResult load(Path path) {
         try {
-            if (Files.notExists(CONFIG_PATH)) {
+            if (Files.notExists(path)) {
                 var defaults = new JeaConfig();
                 defaults.validate();
-                Files.createDirectories(CONFIG_PATH.getParent());
+                Files.createDirectories(path.getParent());
                 Files.writeString(
-                        CONFIG_PATH,
+                        path,
                         GSON.toJson(defaults) + System.lineSeparator(),
                         StandardCharsets.UTF_8,
                         StandardOpenOption.CREATE_NEW,
@@ -43,7 +45,7 @@ public final class JeaConfigManager {
             }
 
             JsonElement root = JsonParser.parseString(
-                    Files.readString(CONFIG_PATH, StandardCharsets.UTF_8));
+                    Files.readString(path, StandardCharsets.UTF_8));
             validateTypes(root);
             var config = GSON.fromJson(root, JeaConfig.class);
             if (config == null) {
@@ -54,7 +56,7 @@ public final class JeaConfigManager {
         } catch (JsonParseException | IllegalArgumentException ex) {
             return LoadResult.failure(ex.getMessage());
         } catch (IOException ex) {
-            return LoadResult.failure("could not read or create " + CONFIG_PATH + ": " + ex.getMessage());
+            return LoadResult.failure("could not read or create " + path + ": " + ex.getMessage());
         }
     }
 
@@ -66,6 +68,13 @@ public final class JeaConfigManager {
         integer(object, "schemaVersion", "schemaVersion");
         bool(object, "enabled", "enabled");
         integer(object, "cooldownSeconds", "cooldownSeconds");
+
+        var safeAnchor = object(object, "safeAnchor", "safeAnchor");
+        if (safeAnchor != null) {
+            bool(safeAnchor, "enabled", "safeAnchor.enabled");
+            integer(safeAnchor, "refreshMinutes", "safeAnchor.refreshMinutes");
+            integer(safeAnchor, "quietSeconds", "safeAnchor.quietSeconds");
+        }
 
         var backup = object(object, "backup", "backup");
         if (backup != null) {

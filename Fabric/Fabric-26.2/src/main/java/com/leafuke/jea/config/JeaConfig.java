@@ -9,6 +9,7 @@ public final class JeaConfig {
     public Backup backup = new Backup();
     public Detectors detectors = new Detectors();
     public Scoreboard scoreboard = new Scoreboard();
+    public SafeAnchor safeAnchor = new SafeAnchor();
 
     public void validate() {
         require(schemaVersion == 1, "schemaVersion must be 1");
@@ -16,8 +17,10 @@ public final class JeaConfig {
         require(backup != null, "backup must be an object");
         require(detectors != null, "detectors must be an object");
         require(scoreboard != null, "scoreboard must be an object");
+        require(safeAnchor != null, "safeAnchor must be an object");
         backup.validate();
         detectors.validate();
+        safeAnchor.validate();
     }
 
     private static void require(boolean condition, String message) {
@@ -150,5 +153,16 @@ public final class JeaConfig {
 
     public static final class Scoreboard {
         public boolean enabled = true;
+    }
+
+    public static final class SafeAnchor {
+        public boolean enabled = true;
+        public int refreshMinutes = 30;
+        public int quietSeconds = 30;
+
+        public void validate() {
+            requireRange(refreshMinutes, 1, 10080, "safeAnchor.refreshMinutes");
+            requireRange(quietSeconds, 0, 3600, "safeAnchor.quietSeconds");
+        }
     }
 }
