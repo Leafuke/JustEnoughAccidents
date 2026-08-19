@@ -6,6 +6,7 @@ import com.leafuke.jea.anchor.SafeAnchorCoordinator;
 import com.leafuke.minebackup.api.v2.BackupEntry;
 import com.leafuke.minebackup.api.v2.BackupId;
 import com.leafuke.minebackup.api.v2.BackupResult;
+import com.leafuke.minebackup.api.v2.MineBackupApi;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -124,56 +125,95 @@ public final class IncidentNotifier implements IncidentFeedback {
     }
 
     private void offerRecoveryTargets(IncidentBatch batch, BackupId incidentBackupId) {
+        var clickMode = restoreClickMode();
+        if (clickMode == RestoreClickMode.UNAVAILABLE) {
+            sendRecoveryMessage(batch, Component.translatable(
+                    "just_enough_accidents.message.dedicated_restore_unavailable",
+                    MineBackupApi.getInstance().runtimeStatus()
+                            .dedicatedRestoreUnavailableReason()
+                            .orElse("unknown")).withStyle(ChatFormatting.YELLOW));
+            return;
+        }
         if (!safeAnchorCoordinator.enabled()) {
-            sendIncidentRestoreButtonToOwner(incidentBackupId);
+            sendIncidentRestoreButton(batch, incidentBackupId, clickMode);
             return;
         }
         safeAnchorCoordinator.lookupRecovery(
                 batch.detectedAt(),
-                safeAnchor -> sendRecoveryTargets(incidentBackupId, safeAnchor),
+                safeAnchor -> sendRecoveryTargets(batch, incidentBackupId, safeAnchor, clickMode),
                 throwable -> {
                     JustEnoughAccidents.LOGGER.warn(
                             "Could not find a pre-incident JEA safe anchor for {}",
                             batch.comment(), throwable);
-                    var owner = owner();
-                    if (owner != null) {
-                        owner.sendSystemMessage(Component.translatable(
-                                "just_enough_accidents.message.safe_anchor_lookup_failed")
-                                .withStyle(ChatFormatting.YELLOW));
-                    }
-                    sendIncidentRestoreButtonToOwner(incidentBackupId);
+                    sendRecoveryMessage(batch, Component.translatable(
+                            "just_enough_accidents.message.safe_anchor_lookup_failed")
+                            .withStyle(ChatFormatting.YELLOW));
+                    sendIncidentRestoreButton(batch, incidentBackupId, clickMode);
                 });
     }
 
-    private void sendRecoveryTargets(BackupId incidentBackupId, Optional<BackupEntry> safeAnchor) {
-        var owner = owner();
-        if (owner == null) {
-            return;
-        }
-        safeAnchor.ifPresentOrElse(
-                anchor -> owner.sendSystemMessage(restoreButton(
-                        anchor.backupId(), "just_enough_accidents.action.restore_safe_anchor")),
-                () -> owner.sendSystemMessage(Component.translatable(
-                        "just_enough_accidents.message.safe_anchor_unavailable")
-                        .withStyle(ChatFormatting.YELLOW)));
-        owner.sendSystemMessage(restoreButton(
-                incidentBackupId, "just_enough_accidents.action.restore_incident_site"));
-    }
-
-    private void sendIncidentRestoreButtonToOwner(BackupId backupId) {
-        var owner = owner();
-        if (owner != null) {
-            owner.sendSystemMessage(restoreButton(backupId, "just_enough_accidents.action.restore_incident_site"));
+    private void sendRecoveryTargets(
+            IncidentBatch batch,
+            BackupId incidentBackupId,
+            Optional<BackupEntry> safeAnchor,
+            RestoreClickMode clickMode) {
+        for (var player : recoveryTargets(batch)) {
+            safeAnchor.ifPresentOrElse(
+                    anchor -> player.sendSystemMessage(restoreButton(
+                            anchor.backupId(), "just_enough_accidents.action.restore_safe_anchor", clickMode)),
+                    () -> player.sendSystemMessage(Component.translatable(
+                            "just_enough_accidents.message.safe_anchor_unavailable")
+                            .withStyle(ChatFormatting.YELLOW)));
+            player.sendSystemMessage(restoreButton(
+                    incidentBackupId, "just_enough_accidents.action.restore_incident_site", clickMode));
         }
     }
 
-    private static Component restoreButton(BackupId backupId, String translationKey) {
+    private void sendIncidentRestoreButton(
+            IncidentBatch batch,
+            BackupId backupId,
+            RestoreClickMode clickMode) {
+        for (var player : recoveryTargets(batch)) {
+            player.sendSystemMessage(restoreButton(
+                    backupId, "just_enough_accidents.action.restore_incident_site", clickMode));
+        }
+    }
+
+    private void sendRecoveryMessage(IncidentBatch batch, Component message) {
+        for (var player : recoveryTargets(batch)) {
+            player.sendSystemMessage(message);
+        }
+    }
+
+    private Set<ServerPlayer> recoveryTargets(IncidentBatch batch) {
+        if (server.isDedicatedServer()) {
+            return targets(batch, false);
+        }
+        var owner = owner();
+        return owner == null ? Set.of() : Set.of(owner);
+    }
+
+    private RestoreClickMode restoreClickMode() {
+        boolean dedicated = server.isDedicatedServer();
+        boolean dedicatedRestoreAvailable = !dedicated
+                || MineBackupApi.getInstance().runtimeStatus().dedicatedRestoreAvailable();
+        return RestoreClickMode.resolve(dedicated, dedicatedRestoreAvailable);
+    }
+
+    private static Component restoreButton(
+            BackupId backupId,
+            String translationKey,
+            RestoreClickMode clickMode) {
         String command = "/mb restore " + StringArgumentType.escapeIfRequired(backupId.value());
         return Component.translatable(translationKey)
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GREEN)
                         .withUnderlined(true)
-                        .withClickEvent(new ClickEvent.RunCommand(command)));
+                        .withClickEvent(switch (clickMode) {
+                            case RUN_COMMAND -> new ClickEvent.RunCommand(command);
+                            case SUGGEST_COMMAND -> new ClickEvent.SuggestCommand(command);
+                            case UNAVAILABLE -> throw new IllegalStateException("restore action is unavailable");
+                        }));
     }
 
     private static MutableComponent reasons(IncidentBatch batch) {

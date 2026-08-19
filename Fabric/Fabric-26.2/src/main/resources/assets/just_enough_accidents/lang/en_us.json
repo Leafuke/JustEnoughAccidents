@@ -19,6 +19,7 @@
   "just_enough_accidents.message.suppressed_cooldown": "[JEA] Detected %s during the global cooldown (%s seconds remaining). This incident was not queued.",
   "just_enough_accidents.message.safe_anchor_unavailable": "[JEA] No safe anchor from before this incident was found.",
   "just_enough_accidents.message.safe_anchor_lookup_failed": "[JEA] The safe-anchor lookup failed; only the accident-site snapshot is available.",
+  "just_enough_accidents.message.dedicated_restore_unavailable": "[JEA] Dedicated restore is unavailable: %s",
   "just_enough_accidents.action.restore_safe_anchor": "[Restore the safe anchor]",
   "just_enough_accidents.action.restore_incident_site": "[Restore the accident-site snapshot]"
 }
