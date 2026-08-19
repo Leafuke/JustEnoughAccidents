@@ -24,6 +24,9 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	compileOnly "com.leafuke.minebackup:minebackup:${project.minebackup_version}"
 	runtimeOnly "com.leafuke.minebackup:minebackup:${project.minebackup_version}"
+	testImplementation platform("org.junit:junit-bom:5.14.4")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 processResources {
@@ -37,6 +40,10 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
+}
+
+test {
+	useJUnitPlatform()
 }
 
 java {
